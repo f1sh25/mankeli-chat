@@ -29,14 +29,16 @@ pub struct InboxMessage {
 pub struct Outgoing {
     id: i16,
     recipient: String,
+    subject: String,
     body: String,
     queued_at: String,
     sent: bool,
 }
 
 pub struct Message {
-    send_to: String,
-    content: String,
+    pub send_to: String,
+    pub subject: String,
+    pub content: String,
 }
 
 pub struct FriendRequest {
@@ -155,9 +157,10 @@ pub fn fetch_outgoing(conn: &Connection) -> Result<Vec<Outgoing>> {
         Ok(Outgoing {
             id: row.get(0)?,
             recipient: row.get(1)?,
-            body: row.get(2)?,
-            queued_at: row.get(3)?,
-            sent: row.get(4)?,
+            subject: row.get(2)?,
+            body: row.get(3)?,
+            queued_at: row.get(4)?,
+            sent: row.get(5)?,
         })
     })?;
 
@@ -170,10 +173,10 @@ pub fn fetch_outgoing(conn: &Connection) -> Result<Vec<Outgoing>> {
     Ok(result)
 }
 
-pub fn send_message(conn: &Connection, message: Message) -> Result<()> {
+pub fn send_message_to_que(conn: &Connection, message: Message) -> Result<()> {
     conn.execute(
-        "INSERT INTO outgoing (recipient, message) VALUES (?1, ?2)",
-        params![message.send_to, message.content],
+        "INSERT INTO outgoing (recipient, subject, message) VALUES (?1, ?2, ?3)",
+        params![message.send_to, message.subject, message.content],
     )?;
     Ok(())
 }
@@ -185,6 +188,7 @@ pub fn send_invite(conn: &Connection, request: FriendRequest) -> Result<()> {
     )?;
 
     //add logic here to send friend request to api
+    //if fails maybe start another thread that will call it
     Ok(())
 }
 

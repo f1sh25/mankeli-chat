@@ -1,6 +1,6 @@
 use mankeli_chat::db::{
-    FriendRequest, User, delete_message, delete_user, fetch_inbox, fetch_users, retr_user,
-    send_invite, setup_db,
+    FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_users, retr_user,
+    send_invite, send_message_to_que, setup_db,
 };
 use rusqlite::Connection;
 use std::io::{self, Write};
@@ -22,6 +22,7 @@ fn main() {
     let user: User = retr_user(&conn).unwrap_or_else(|_| init_db(&conn, username));
 
     loop {
+        // todo make make able to use i,f,s,o as commands also
         let prompt =
             "\nAvailable commands: inbox, friends, send, outbound, quit\nPlease enter something: ";
 
@@ -191,10 +192,20 @@ fn read_friends(conn: &Connection) {
 }
 
 fn send_message(conn: &Connection) {
-    //who?
-    //message body?
+    println!("Please fill the following fields");
+    let message = Message {
+        send_to: read_input("Recepiant: "),
+        subject: read_input("Subject: "),
+        content: read_input("Content: "),
+    };
 
-    todo!()
+    let _response = match send_message_to_que(conn, message) {
+        Ok(_) => println!("Message queued!"),
+        Err(e) => {
+            eprintln!("Error Queueing messages: {}", e);
+            return;
+        }
+    };
 }
 
 fn view_outbound(conn: &Connection) {

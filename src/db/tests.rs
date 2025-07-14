@@ -95,11 +95,12 @@ fn test_send_message() {
 
     let message = Message {
         send_to: "user@example.com".to_string(),
+        subject: "test message".to_string(),
         content: "Hello world!".to_string(),
         // other fields if needed
     };
 
-    let result = send_message(&conn, message);
+    let result = send_message_to_que(&conn, message);
     assert!(result.is_ok());
 
     // Verify it was inserted
