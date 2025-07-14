@@ -1,5 +1,5 @@
-use mankeli_chat::db::{User, retr_user, setup_db};
-use rusqlite::{Connection, Result, params};
+use mankeli_chat::db::{User, delete_message, fetch_inbox, retr_user, setup_db};
+use rusqlite::{Connection, Result, fallible_iterator::Enumerate, params};
 use std::io::{self, Write};
 
 // TO-DO write a cli menu next
@@ -62,7 +62,74 @@ fn init_db(conn: &Connection, username: String) -> User {
 }
 
 fn read_inbox(conn: &Connection) {
-    println!("you dont have mail")
+    let inbox = match fetch_inbox(conn) {
+        Ok(messages) => messages,
+        Err(e) => {
+            eprintln!("Error fetching inbox: {}", e);
+            return;
+        }
+    };
+
+    if inbox.is_empty() {
+        println!("You don't have any mail.");
+        return;
+    }
+
+    println!("Your inbox:");
+    for (i, message) in inbox.iter().enumerate() {
+        println!(
+            "{}. From: {}, Subject: {}",
+            i + 1,
+            message.sender,
+            message.subject
+        );
+    }
+
+    loop {
+        print!("\nEnter message number to read in full, or 'b' to go back: ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        if let Err(_) = io::stdin().read_line(&mut input) {
+            println!("Failed to read input. Try again.");
+            continue;
+        }
+
+        let input = input.trim();
+
+        if input.eq_ignore_ascii_case("b") {
+            println!("Returning to main menu...");
+            break;
+        }
+
+        match input.parse::<usize>() {
+            Ok(index) if index > 0 && index <= inbox.len() => {
+                let message = &inbox[index - 1];
+                println!(
+                    "\nFrom: {}\nSubject: {}\n\n{}",
+                    message.sender, message.subject, message.message
+                );
+
+                print!("Delete this message? (y/n): ");
+                io::stdout().flush().unwrap();
+
+                let mut del_input = String::new();
+                if let Ok(_) = io::stdin().read_line(&mut del_input) {
+                    if del_input.trim().eq_ignore_ascii_case("y") {
+                        match delete_message(conn, message.id) {
+                            Ok(_) => println!("Message deleted."),
+                            Err(e) => println!("Failed to delete message: {}", e),
+                        }
+                    }
+                }
+
+                break;
+            }
+            _ => {
+                println!("Invalid input. Please enter a valid number or 'b'.");
+            }
+        }
+    }
 }
 
 fn read_friends(conn: &Connection) {
