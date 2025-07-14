@@ -1,5 +1,8 @@
-use mankeli_chat::db::{User, delete_message, fetch_inbox, retr_user, setup_db};
-use rusqlite::{Connection, Result, fallible_iterator::Enumerate, params};
+use mankeli_chat::db::{
+    FriendRequest, User, delete_message, delete_user, fetch_inbox, fetch_users, retr_user,
+    send_invite, setup_db,
+};
+use rusqlite::Connection;
 use std::io::{self, Write};
 
 // TO-DO write a cli menu next
@@ -133,7 +136,58 @@ fn read_inbox(conn: &Connection) {
 }
 
 fn read_friends(conn: &Connection) {
-    todo!()
+    let friends = match fetch_users(conn) {
+        Ok(friends) => friends,
+        Err(e) => {
+            eprintln!("Error fetching users: {}", e);
+            return;
+        }
+    };
+
+    println!("your friends: ");
+    for fr in friends {
+        println!("{}. {}", fr.id, fr.username,)
+    }
+
+    loop {
+        let response = read_input("a: Add Friend, r: remove Friend, b: go back: ").to_lowercase();
+
+        if response.as_str() == "b" {
+            println!("Returning to main menu...");
+            break;
+        }
+
+        match response.as_str() {
+            "a" => {
+                let username = read_input("Enter username of user: ");
+                let address = read_input("Enter ip/hostname of user: ");
+                let _ = send_invite(
+                    conn,
+                    FriendRequest {
+                        username: username,
+                        address: address,
+                    },
+                )
+                .unwrap();
+            }
+            "r" => {
+                let id = read_input("enter friend id to remove them: ");
+
+                match id.trim().parse::<i32>() {
+                    Ok(friend_id) => {
+                        println!("Removing friend with id: {}", friend_id);
+                        let _ = delete_user(conn, friend_id);
+                    }
+                    Err(e) => {
+                        println!("Invalid input: must be a number. Error: {}", e);
+                    }
+                }
+            }
+            _ => {
+                println!("Invalid input. Please enter a valid number or 'b'.");
+            }
+        }
+    }
 }
 
 fn send_message(conn: &Connection) {

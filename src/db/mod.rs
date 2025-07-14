@@ -10,10 +10,10 @@ pub struct User {
 
 #[derive(Debug)]
 pub struct Friend {
-    id: i32,
-    username: String,
-    address: String,
-    added_at: String,
+    pub id: i32,
+    pub username: String,
+    pub address: String,
+    pub added_at: String,
 }
 
 #[derive(Debug)]
@@ -40,8 +40,8 @@ pub struct Message {
 }
 
 pub struct FriendRequest {
-    username: String,
-    address: String,
+    pub username: String,
+    pub address: String,
 }
 
 pub fn retr_user(conn: &Connection) -> Result<User> {
@@ -184,11 +184,17 @@ pub fn send_invite(conn: &Connection, request: FriendRequest) -> Result<()> {
         params![request.username, request.address],
     )?;
 
+    //add logic here to send friend request to api
     Ok(())
 }
 
 pub fn delete_message(conn: &Connection, id: i32) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM inbox WHERE id = ?", &[&id])?;
+    Ok(())
+}
+
+pub fn delete_user(conn: &Connection, id: i32) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM Friends WHERE id = ?", &[&id])?;
     Ok(())
 }
 
