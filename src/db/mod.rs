@@ -27,12 +27,13 @@ pub struct InboxMessage {
 
 #[derive(Debug)]
 pub struct Outgoing {
-    id: i16,
-    recipient: String,
-    subject: String,
-    body: String,
-    queued_at: String,
-    sent: bool,
+    pub id: i16,
+    pub recipient: String,
+    pub recipient_address: String,
+    pub subject: String,
+    pub body: String,
+    pub queued_at: String,
+    pub sent: bool,
 }
 
 pub struct Message {
@@ -74,6 +75,7 @@ pub fn setup_db(conn: &Connection, user: &User) -> Result<()> {
         CREATE TABLE IF NOT EXISTS outgoing (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             recipient TEXT NOT NULL,
+            recipient_address TEXT NOT NULL,
             subject TEXT NOT NULL,
             message TEXT NOT NULL,
             queued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -152,15 +154,18 @@ pub fn fetch_inbox(conn: &Connection) -> Result<Vec<InboxMessage>> {
 }
 
 pub fn fetch_outgoing(conn: &Connection) -> Result<Vec<Outgoing>> {
-    let mut stmt = conn.prepare("SELECT id, recipient, message, queued_at, sent FROM outgoing")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, recipient, recipient_address, subject, message, queued_at, sent FROM outgoing",
+    )?;
     let outgoing_iter = stmt.query_map([], |row| {
         Ok(Outgoing {
             id: row.get(0)?,
             recipient: row.get(1)?,
-            subject: row.get(2)?,
-            body: row.get(3)?,
-            queued_at: row.get(4)?,
-            sent: row.get(5)?,
+            recipient_address: row.get(2)?,
+            subject: row.get(3)?,
+            body: row.get(4)?,
+            queued_at: row.get(5)?,
+            sent: row.get(6)?,
         })
     })?;
 
@@ -174,9 +179,13 @@ pub fn fetch_outgoing(conn: &Connection) -> Result<Vec<Outgoing>> {
 }
 
 pub fn send_message_to_que(conn: &Connection, message: Message) -> Result<()> {
+    let mut stmt = conn.prepare("SELECT address FROM friends WHERE username = ?1")?;
+    //to-do make this so it prints that user wasnt found
+    let recipient_address: String = stmt.query_row(params![message.send_to], |row| row.get(0))?;
+
     conn.execute(
-        "INSERT INTO outgoing (recipient, subject, message) VALUES (?1, ?2, ?3)",
-        params![message.send_to, message.subject, message.content],
+        "INSERT INTO outgoing (recipient, recipient_address, subject, message) VALUES (?1, ?2, ?3, ?4)",
+        params![message.send_to, recipient_address, message.subject, message.content],
     )?;
     Ok(())
 }

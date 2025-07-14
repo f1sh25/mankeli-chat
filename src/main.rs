@@ -1,6 +1,6 @@
 use mankeli_chat::db::{
-    FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_users, retr_user,
-    send_invite, send_message_to_que, setup_db,
+    FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
+    fetch_users, retr_user, send_invite, send_message_to_que, setup_db,
 };
 use rusqlite::Connection;
 use std::io::{self, Write};
@@ -60,7 +60,7 @@ fn init_db(conn: &Connection, username: String) -> User {
         address: "127.0.0.1".to_string(),
     };
 
-    let res: std::result::Result<(), rusqlite::Error> = setup_db(&conn, &user);
+    let _ = setup_db(&conn, &user).unwrap();
 
     user
 }
@@ -137,20 +137,21 @@ fn read_inbox(conn: &Connection) {
 }
 
 fn read_friends(conn: &Connection) {
-    let friends = match fetch_users(conn) {
-        Ok(friends) => friends,
-        Err(e) => {
-            eprintln!("Error fetching users: {}", e);
-            return;
-        }
-    };
-
-    println!("your friends: ");
-    for fr in friends {
-        println!("{}. {}", fr.id, fr.username,)
-    }
-
     loop {
+        let friends = match fetch_users(conn) {
+            Ok(friends) => friends,
+            Err(e) => {
+                eprintln!("Error fetching users: {}", e);
+                return;
+            }
+        };
+
+        println!("your friends: ");
+        for fr in friends {
+            // todo make this prettier
+            println!("{}. {} {}", fr.id, fr.username, fr.address)
+        }
+
         let response = read_input("a: Add Friend, r: remove Friend, b: go back: ").to_lowercase();
 
         if response.as_str() == "b" {
@@ -162,14 +163,19 @@ fn read_friends(conn: &Connection) {
             "a" => {
                 let username = read_input("Enter username of user: ");
                 let address = read_input("Enter ip/hostname of user: ");
-                let _ = send_invite(
+                let _ = match send_invite(
                     conn,
                     FriendRequest {
                         username: username,
                         address: address,
                     },
-                )
-                .unwrap();
+                ) {
+                    Ok(_) => continue,
+                    Err(e) => {
+                        eprintln!("Error sending invite: {}", e);
+                        continue;
+                    }
+                };
             }
             "r" => {
                 let id = read_input("enter friend id to remove them: ");
@@ -209,5 +215,19 @@ fn send_message(conn: &Connection) {
 }
 
 fn view_outbound(conn: &Connection) {
-    todo!()
+    let outbound = match fetch_outgoing(conn) {
+        Ok(outbound) => outbound,
+        Err(e) => {
+            eprintln!("Error fetching outbound messages: {}", e);
+            return;
+        }
+    };
+
+    println!("your outbound mail: ");
+    for message in outbound {
+        println!(
+            "to: {} | subject: {} | sent: {}",
+            message.recipient, message.subject, message.sent
+        )
+    }
 }
