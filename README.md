@@ -11,3 +11,19 @@ idea premise p2p chat two clients
     - fetch (api to fetch)
 
 - encryption pgp/https
+
+
+
+
+one api endpoint 
+
+post username and ip
+
+->
+
+return:
+messages sent to you
+
+
+
+friend request are pushed

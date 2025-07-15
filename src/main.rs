@@ -1,3 +1,4 @@
+use axum::http::request;
 use mankeli_chat::db::{
     FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
     fetch_users, retr_user, send_invite, send_message_to_que, setup_db,
@@ -16,6 +17,10 @@ fn main() {
     let username = read_input("Enter Username: ");
 
     //TO-DO fetch if exists in db if exist greet if not then promt and ask if you want to create new account
+
+    // Starting server
+
+    // Server Started
 
     println!("\nWelcome {}!\n", &username);
 
@@ -60,7 +65,7 @@ fn init_db(conn: &Connection, username: String) -> User {
         address: "127.0.0.1".to_string(),
     };
 
-    let _ = setup_db(&conn, &user).unwrap();
+    let _ = setup_db(&conn, &user, false).unwrap();
 
     user
 }
@@ -163,13 +168,11 @@ fn read_friends(conn: &Connection) {
             "a" => {
                 let username = read_input("Enter username of user: ");
                 let address = read_input("Enter ip/hostname of user: ");
-                let _ = match send_invite(
-                    conn,
-                    FriendRequest {
-                        username: username,
-                        address: address,
-                    },
-                ) {
+                let request = FriendRequest {
+                    username: username,
+                    address: address,
+                };
+                let _ = match send_invite(conn, &request) {
                     Ok(_) => continue,
                     Err(e) => {
                         eprintln!("Error sending invite: {}", e);
@@ -205,7 +208,7 @@ fn send_message(conn: &Connection) {
         content: read_input("Content: "),
     };
 
-    let _response = match send_message_to_que(conn, message) {
+    let _response = match send_message_to_que(conn, &message) {
         Ok(_) => println!("Message queued!"),
         Err(e) => {
             eprintln!("Error Queueing messages: {}", e);
