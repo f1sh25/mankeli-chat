@@ -1,65 +1,75 @@
 use super::*;
-use rusqlite::Connection;
+use sqlx::{SqlitePool, migrate::Migrator};
+use std::path::Path;
 
-#[test]
-fn test_fetch_users_with_data() {
-    let conn = Connection::open_in_memory().unwrap();
+static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
-    let chat_user = User {
-        id: 0,
-        username: "testuser".to_string(),
-        address: "127.0.0.1".to_string(),
-    };
+async fn setup_test_db() -> SqlitePool {
+    let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+    MIGRATOR.run(&pool).await.unwrap();
+    pool
+}
 
-    let _ = setup_db(&conn, &chat_user, true).unwrap();
+#[tokio::test]
+async fn test_fetch_users_with_data() {
+    let pool = setup_test_db().await;
 
-    let result: Result<Vec<Friend>, rusqlite::Error> = fetch_users(&conn);
+    sqlx::query("INSERT INTO user (id, username, address) VALUES (0, 'testuser', '127.0.0.1')")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO friends (username, address) VALUES ('user1', '1.1.1.1'), ('user2', '2.2.2.2'), ('user3', '3.3.3.3')")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let result = fetch_users(&pool).await;
+    assert!(result.is_ok());
     let users = result.unwrap();
+
     assert_eq!(users.len(), 3);
     assert_eq!(users[0].username, "user1");
     assert_eq!(users[0].address, "1.1.1.1");
 }
 
-#[test]
-fn test_fetch_outgoing_with_data() {
-    let conn = Connection::open_in_memory().unwrap();
+#[tokio::test]
+async fn test_fetch_outgoing_with_data() {
+    let pool = setup_test_db().await;
 
-    let chat_user = User {
-        id: 0,
-        username: "testuser".to_string(),
-        address: "127.0.0.1".to_string(),
-    };
+    sqlx::query("INSERT INTO user (id, username, address) VALUES (0, 'testuser', '127.0.0.1')")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-    let _ = setup_db(&conn, &chat_user, true).unwrap();
+    sqlx::query("INSERT INTO outgoing (recipient, recipient_address, subject, message, sent) VALUES ('charlie@example.com', '1.2.3.4', 'Test subject','Test message', 0)")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-    conn.execute_batch(
-        "
-        INSERT INTO outgoing (recipient, recipient_address, subject, message, sent) VALUES
-            ('charlie@example.com', '1.2.3.4', 'Test subject','Test message', 0);
-        ",
-    )
-    .unwrap();
-
-    let result: Result<Vec<Outgoing>, rusqlite::Error> = fetch_outgoing(&conn);
+    let result = fetch_outgoing(&pool).await;
     assert!(result.is_ok(), "Error fetching outgoing: {:?}", result);
     let outgoing = result.unwrap();
-    assert_eq!(outgoing.len(), 3);
-    assert_eq!(outgoing[2].recipient, "charlie@example.com");
-    assert_eq!(outgoing[2].body, "Test message");
-    assert_eq!(outgoing[2].sent, false);
+
+    assert_eq!(outgoing.len(), 1);
+    assert_eq!(outgoing[0].recipient, "charlie@example.com");
+    assert_eq!(outgoing[0].body, "Test message");
+    assert_eq!(outgoing[0].sent, Some(false));
 }
 
-#[test]
-fn test_send_message() {
-    let conn = Connection::open_in_memory().unwrap();
+#[tokio::test]
+async fn test_send_message() {
+    let pool = setup_test_db().await;
 
-    let chat_user = User {
-        id: 0,
-        username: "testuser".to_string(),
-        address: "127.0.0.1".to_string(),
-    };
+    sqlx::query("INSERT INTO user (id, username, address) VALUES (0, 'testuser', '127.0.0.1')")
+        .execute(&pool)
+        .await
+        .unwrap();
 
-    let _ = setup_db(&conn, &chat_user, true).unwrap();
+    sqlx::query("INSERT INTO friends (username, address) VALUES ('user3', '3.3.3.3')")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let message = Message {
         send_to: "user3".to_string(),
@@ -67,53 +77,46 @@ fn test_send_message() {
         content: "Hello world!".to_string(),
     };
 
-    let result = send_message_to_que(&conn, &message);
+    let result = send_message_to_que(&pool, &message).await;
     assert!(result.is_ok());
 
-    // Verify it was inserted
-    let mut stmt = conn
-        .prepare("SELECT recipient, message FROM outgoing  WHERE recipient = ?1")
-        .unwrap();
-    let mut rows: rusqlite::Rows<'_> = stmt.query([message.send_to.clone()]).unwrap();
-    let row = rows.next().unwrap().unwrap();
+    let sent_message = sqlx::query_as::<_, (String, String)>(
+        "SELECT recipient, message FROM outgoing WHERE recipient = ?",
+    )
+    .bind(&message.send_to)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    let recipient: String = row.get(0).unwrap();
-    let content: String = row.get(1).unwrap();
-
-    assert_eq!(recipient, message.send_to);
-    assert_eq!(content, message.content);
+    assert_eq!(sent_message.0, message.send_to);
+    assert_eq!(sent_message.1, message.content);
 }
 
-#[test]
-fn test_send_invite() {
-    let conn = Connection::open_in_memory().unwrap();
+#[tokio::test]
+async fn test_send_invite() {
+    let pool = setup_test_db().await;
 
-    let chat_user = User {
-        id: 0,
-        username: "testuser".to_string(),
-        address: "127.0.0.1".to_string(),
-    };
-
-    let _ = setup_db(&conn, &chat_user, true).unwrap();
+    sqlx::query("INSERT INTO user (id, username, address) VALUES (0, 'testuser', '127.0.0.1')")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let request = FriendRequest {
         username: "alice".to_string(),
         address: "alice@example.com".to_string(),
     };
 
-    let result = send_invite(&conn, &request);
+    let result = send_invite(&pool, &request).await;
     assert!(result.is_ok());
 
-    // Verify it was inserted
-    let mut stmt = conn
-        .prepare("SELECT username, address FROM friends WHERE username = ?1")
-        .unwrap();
-    let mut rows = stmt.query([request.username]).unwrap();
-    let row = rows.next().unwrap().unwrap();
+    let friend = sqlx::query_as::<_, (String, String)>(
+        "SELECT username, address FROM friends WHERE username = ?",
+    )
+    .bind(&request.username)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    let username: String = row.get(0).unwrap();
-    let address: String = row.get(1).unwrap();
-
-    assert_eq!(username, "alice");
-    assert_eq!(address, "alice@example.com");
+    assert_eq!(friend.0, "alice");
+    assert_eq!(friend.1, "alice@example.com");
 }
