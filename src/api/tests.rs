@@ -18,10 +18,6 @@ use tower::ServiceExt;
 
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
-fn app() -> Router {
-    Router::new().route("/fetch_messages", post(fetch_messages_handler))
-}
-
 async fn setup_test_db() -> SqlitePool {
     let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
     MIGRATOR.run(&pool).await.unwrap();
@@ -59,9 +55,9 @@ async fn test_fetch_messages_success() {
         .await
         .expect("Failed to send test messages");
 
-    let app = app();
+    let app = app(pool);
     let input = FetchMessageInput {
-        username: "user1".to_string(),
+        username: "user3".to_string(),
         address: "1.1.1.1".to_string(),
     };
     let body = json!(input).to_string();
@@ -76,6 +72,7 @@ async fn test_fetch_messages_success() {
         )
         .await
         .expect("Failed to get response from app");
+
     assert_eq!(response.status(), StatusCode::OK);
     let response_body = to_bytes(response.into_body(), usize::MAX)
         .await
@@ -85,6 +82,6 @@ async fn test_fetch_messages_success() {
     assert_eq!(response_json.messages.len(), 1);
     let message = &response_json.messages[0];
     assert_eq!(message.sender, "testuser");
-    assert_eq!(message.subject, "test subject");
-    assert_eq!(message.body, "test content");
+    assert_eq!(message.subject, "test message");
+    assert_eq!(message.body, "Hello world!");
 }

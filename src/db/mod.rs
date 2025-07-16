@@ -1,3 +1,5 @@
+use std::sync::mpsc::Sender;
+
 use chrono::NaiveDateTime;
 use sqlx::{FromRow, SqlitePool};
 
@@ -31,6 +33,7 @@ pub struct InboxMessage {
 #[derive(Debug, FromRow)]
 pub struct Outgoing {
     pub id: i64,
+    pub sender: String,
     pub recipient: String,
     pub recipient_address: String,
     pub subject: String,
@@ -101,7 +104,7 @@ pub async fn fetch_inbox(pool: &SqlitePool) -> Result<Vec<InboxMessage>, sqlx::E
 pub async fn fetch_outgoing(pool: &SqlitePool) -> Result<Vec<Outgoing>, sqlx::Error> {
     let messages = sqlx::query_as!(
         Outgoing,
-        "SELECT id, recipient, recipient_address, subject, message as body, queued_at, sent FROM outgoing"
+        "SELECT id, sender, recipient, recipient_address, subject, message as body, queued_at, sent FROM outgoing"
     )
     .fetch_all(pool)
     .await?;
@@ -109,6 +112,8 @@ pub async fn fetch_outgoing(pool: &SqlitePool) -> Result<Vec<Outgoing>, sqlx::Er
 }
 
 pub async fn send_message_to_que(pool: &SqlitePool, message: &Message) -> Result<(), sqlx::Error> {
+    let sender = retr_user(pool).await?;
+
     let recipient_address: (String,) =
         sqlx::query_as("SELECT address FROM friends WHERE username = ?")
             .bind(&message.send_to)
@@ -116,7 +121,8 @@ pub async fn send_message_to_que(pool: &SqlitePool, message: &Message) -> Result
             .await?;
 
     sqlx::query!(
-        "INSERT INTO outgoing (recipient, recipient_address, subject, message) VALUES (?, ?, ?, ?)",
+        "INSERT INTO outgoing (sender, recipient, recipient_address, subject, message) VALUES (?, ?, ?, ?, ?)",
+        sender.username,
         message.send_to,
         recipient_address.0,
         message.subject,
@@ -151,4 +157,23 @@ pub async fn delete_user(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> 
         .execute(pool)
         .await?;
     Ok(())
+}
+
+pub async fn fetch_messages_for_user(
+    pool: &SqlitePool,
+    username: String,
+) -> Result<Vec<Outgoing>, sqlx::Error> {
+    let messages: Vec<Outgoing> = sqlx::query_as!(
+        Outgoing,
+        r#"
+        SELECT id, sender,recipient, recipient_address, subject, message as body, queued_at, sent
+        FROM outgoing
+        WHERE recipient = ?
+        "#,
+        username
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(messages)
 }

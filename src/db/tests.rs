@@ -1,6 +1,5 @@
 use super::*;
 use sqlx::{SqlitePool, migrate::Migrator};
-use std::path::Path;
 
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
@@ -42,7 +41,7 @@ async fn test_fetch_outgoing_with_data() {
         .await
         .unwrap();
 
-    sqlx::query("INSERT INTO outgoing (recipient, recipient_address, subject, message, sent) VALUES ('charlie@example.com', '1.2.3.4', 'Test subject','Test message', 0)")
+    sqlx::query("INSERT INTO outgoing (sender, recipient, recipient_address, subject, message, sent) VALUES ('testuser', 'charlie@example.com', '1.2.3.4', 'Test subject','Test message', 0)")
         .execute(&pool)
         .await
         .unwrap();
