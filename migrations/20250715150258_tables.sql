@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS friends (
     address TEXT NOT NULL,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     status INTEGER NOT NULL DEFAULT 0 -- Default to 0 for 'invite_sent'
-        CHECK (status IN (0, 1, 2, 3)) -- 0: invite_sent, 1: invite_received, 2: accepted, 3: rejected
+    CHECK (status IN (0, 1, 2, 3)), -- 0: invite_sent, 1: invite_received, 2: accepted, 3: rejected
+    sent BOOLEAN DEFAULT 0
 );
 
 

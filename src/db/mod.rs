@@ -1,7 +1,8 @@
-use std::sync::mpsc::Sender;
-
+use crate::api::FriendRequestStatus;
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
+use std::{string, sync::mpsc::Sender};
 
 #[cfg(test)]
 mod tests;
@@ -18,6 +19,7 @@ pub struct Friend {
     pub id: i64,
     pub username: String,
     pub address: String,
+    pub status: i64,
     pub added_at: Option<NaiveDateTime>,
 }
 
@@ -42,6 +44,7 @@ pub struct Outgoing {
     pub sent: Option<bool>,
 }
 
+#[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
 pub struct Message {
     pub send_to: String,
     pub subject: String,
@@ -84,7 +87,7 @@ pub async fn retr_user(pool: &SqlitePool) -> Result<User, sqlx::Error> {
 pub async fn fetch_users(pool: &SqlitePool) -> Result<Vec<Friend>, sqlx::Error> {
     let friends = sqlx::query_as!(
         Friend,
-        "SELECT id, username, address, added_at FROM friends"
+        "SELECT id, username, address, status, added_at FROM friends"
     )
     .fetch_all(pool)
     .await?;
@@ -176,4 +179,56 @@ pub async fn fetch_messages_for_user(
     .await?;
 
     Ok(messages)
+}
+
+//Fetch accepted friends
+pub async fn fetch_active_friends(pool: &SqlitePool) -> Result<Vec<Friend>, sqlx::Error> {
+    let status = 2;
+    let friends: Vec<Friend> = sqlx::query_as!(
+        Friend,
+        r#"
+        SELECT id, username, address, status, added_at
+        FROM friends
+        WHERE status = ?
+        "#,
+        status
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(friends)
+}
+
+//Fetch unsent requests
+
+pub async fn fetch_unsent_friend_updt(
+    pool: &SqlitePool,
+) -> Result<(String, Vec<Friend>), sqlx::Error> {
+    let user = retr_user(pool).await?;
+
+    let status = false;
+    let friends: Vec<Friend> = sqlx::query_as!(
+        Friend,
+        r#"
+        SELECT id, username, address, status, added_at
+        FROM friends
+        WHERE sent = ?
+        "#,
+        status
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok((user.username, friends))
+}
+
+pub async fn batch_ingest(pool: &SqlitePool, messages: Vec<Message>) -> Result<(), sqlx::Error> {
+    todo!()
+}
+
+pub async fn update_friend_status_as_sent(
+    pool: &SqlitePool,
+    username: &String,
+) -> Result<(), sqlx::Error> {
+    todo!()
 }

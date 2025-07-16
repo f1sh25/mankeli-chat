@@ -1,3 +1,5 @@
+use mankeli_chat::StatusLabel;
+use mankeli_chat::api::FriendRequestStatus;
 use mankeli_chat::db::{
     FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
     fetch_users, retr_user, send_invite, send_message_to_que, setup_db,
@@ -169,11 +171,26 @@ async fn read_friends(pool: &SqlitePool) {
         };
 
         println!("Your friends:");
+
         if friends.is_empty() {
             println!("You don't have any friends yet.");
         } else {
+            println!(
+                "{:<4} {:<15} {:<25} {:<18} {}",
+                "ID", "Username", "Address", "Status", "Added At (UTC)"
+            );
+            println!("{}", "-".repeat(80));
             for fr in friends {
-                println!("{}. {} {}", fr.id, fr.username, fr.address)
+                println!(
+                    "{:<4} {:<15} {:<25} {:<18} {}",
+                    fr.id,
+                    fr.username,
+                    fr.address,
+                    fr.status.status_str(),
+                    fr.added_at
+                        .map(|dt| dt.to_string())
+                        .unwrap_or("N/A".to_string())
+                );
             }
         }
 
