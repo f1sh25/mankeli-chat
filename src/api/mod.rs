@@ -68,6 +68,7 @@ impl IntoResponse for ApiError {
 fn app(pool: SqlitePool) -> Router {
     Router::new()
         .route("/fetch_messages", post(fetch_messages_handler))
+        .route("/friend_request", post(friend_request_handler))
         .layer(Extension(Arc::new(pool)))
 }
 
@@ -97,8 +98,161 @@ pub async fn fetch_messages_handler(
 
 pub async fn friend_request_handler(
     Extension(pool): Extension<Arc<SqlitePool>>,
-    Json(input): Json<FetchMessageInput>,
-) {
-    //post with username and host name with flag Request, Accept, Reject
-    todo!()
+    Json(input): Json<FriendInput>,
+) -> impl IntoResponse {
+    let FriendInput {
+        username,
+        hostname,
+        req_type,
+    } = input;
+
+    if username == hostname {
+        return ApiError::InvalidInput("Cannot add yourself as a friend.".to_string())
+            .into_response();
+    }
+
+    match req_type {
+        FriendRequestStatus::InviteSent => {
+            // Insert invite_sent from A to B
+            let res = sqlx::query!(
+                r#"
+                INSERT INTO friends (username, address, status)
+                VALUES (?, ?, 0)
+                ON CONFLICT(username) DO UPDATE SET
+                    status = 0,
+                    added_at = CURRENT_TIMESTAMP
+                "#,
+                username,
+                hostname
+            )
+            .execute(&*pool)
+            .await;
+
+            match res {
+                Ok(_) => (
+                    StatusCode::OK,
+                    Json(serde_json::json!({ "status": "invite_sent" })),
+                )
+                    .into_response(),
+                Err(e) => {
+                    error!("Failed to send invite: {:?}", e);
+                    ApiError::InternalServerError("DB insert failed".into()).into_response()
+                }
+            }
+        }
+        FriendRequestStatus::InviteReceived => {
+            // Insert invite_received from B to A (not common)
+            let res = sqlx::query!(
+                r#"
+                INSERT INTO friends (username, address, status)
+                VALUES (?, ?, 1)
+                ON CONFLICT(username) DO UPDATE SET
+                    status = 1,
+                    added_at = CURRENT_TIMESTAMP
+                "#,
+                hostname,
+                username
+            )
+            .execute(&*pool)
+            .await;
+
+            match res {
+                Ok(_) => (
+                    StatusCode::OK,
+                    Json(serde_json::json!({ "status": "invite_received" })),
+                )
+                    .into_response(),
+                Err(e) => {
+                    error!("Failed to record invite_received: {:?}", e);
+                    ApiError::InternalServerError("DB insert failed".into()).into_response()
+                }
+            }
+        }
+        FriendRequestStatus::Accepted => {
+            let existing: Option<i64> = match sqlx::query_scalar!(
+                r#"
+                SELECT status as "status: i64" FROM friends
+                WHERE username = ? AND address = ?
+                "#,
+                hostname,
+                username
+            )
+            .fetch_optional(&*pool)
+            .await
+            {
+                Ok(val) => val,
+                Err(e) => {
+                    error!("DB check failed: {:?}", e);
+                    return ApiError::InternalServerError("DB check failed".into()).into_response();
+                }
+            };
+
+            if let Some(s) = existing {
+                if s == 0 {
+                    let res = sqlx::query!(
+                        r#"
+                        INSERT INTO friends (username, address, status)
+                        VALUES (?, ?, 2)
+                        ON CONFLICT(username) DO UPDATE SET
+                            status = 2,
+                            added_at = CURRENT_TIMESTAMP
+                        "#,
+                        username,
+                        hostname
+                    )
+                    .execute(&*pool)
+                    .await;
+
+                    match res {
+                        Ok(_) => (
+                            StatusCode::OK,
+                            Json(serde_json::json!({ "status": "accepted" })),
+                        )
+                            .into_response(),
+                        Err(e) => {
+                            error!("Failed to accept friend: {:?}", e);
+                            ApiError::InternalServerError("Failed to accept friend".into())
+                                .into_response()
+                        }
+                    }
+                } else {
+                    ApiError::InvalidInput("No pending invitation to accept.".into())
+                        .into_response()
+                }
+            } else {
+                ApiError::NotFound("No invitation found.".into()).into_response()
+            }
+        }
+        FriendRequestStatus::Rejected => {
+            let updated = sqlx::query!(
+                r#"
+                UPDATE friends SET status = 3, added_at = CURRENT_TIMESTAMP
+                WHERE username = ? AND address = ? AND status = 0
+                "#,
+                hostname,
+                username
+            )
+            .execute(&*pool)
+            .await;
+
+            match updated {
+                Ok(result) => {
+                    if result.rows_affected() == 0 {
+                        ApiError::InvalidInput("No pending invitation to reject.".into())
+                            .into_response()
+                    } else {
+                        (
+                            StatusCode::OK,
+                            Json(serde_json::json!({ "status": "rejected" })),
+                        )
+                            .into_response()
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to reject friend: {:?}", e);
+                    ApiError::InternalServerError("Failed to reject friend.".into()).into_response()
+                }
+            }
+        }
+    }
 }

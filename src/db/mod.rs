@@ -166,7 +166,7 @@ pub async fn fetch_messages_for_user(
     let messages: Vec<Outgoing> = sqlx::query_as!(
         Outgoing,
         r#"
-        SELECT id, sender,recipient, recipient_address, subject, message as body, queued_at, sent
+        SELECT id, sender, recipient, recipient_address, subject, message as body, queued_at, sent
         FROM outgoing
         WHERE recipient = ?
         "#,

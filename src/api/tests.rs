@@ -85,3 +85,48 @@ async fn test_fetch_messages_success() {
     assert_eq!(message.subject, "test message");
     assert_eq!(message.body, "Hello world!");
 }
+
+#[tokio::test]
+async fn test_friend_invite_sent_success() {
+    let pool = setup_test_db().await;
+    let shared_pool = Arc::new(pool.clone());
+
+    let app = Router::new()
+        .route("/friend_request", post(super::friend_request_handler))
+        .layer(Extension(shared_pool));
+
+    let input = FriendInput {
+        username: "alice".into(),
+        hostname: "bob".into(),
+        req_type: FriendRequestStatus::InviteSent,
+    };
+
+    let body = serde_json::to_string(&input).unwrap();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/friend_request")
+                .header("Content-Type", "application/json")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("Failed to read response body");
+    let response_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+
+    assert_eq!(response_json["status"], "invite_sent");
+
+    let row: (i64,) = sqlx::query_as("SELECT status FROM friends WHERE username = 'alice'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(row.0, 0);
+}
