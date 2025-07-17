@@ -63,7 +63,7 @@ async fn test_send_friend_request_success() {
     let client = Client::new();
     let pool = setup_test_db().await;
 
-    let result = send_friend_request(&pool, &client, "bob", &friend).await;
+    let result = send_friend_request(&pool, &client, "bob", &friend, "127.0.0.1").await;
 
     assert!(result.is_ok());
 }

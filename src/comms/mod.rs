@@ -11,7 +11,7 @@
 use crate::StatusLabel;
 use crate::api::{FetchMessageInput, FetchMessageResponse, FriendInput};
 use crate::db::{
-    Friend, batch_ingest, fetch_active_friends, fetch_unsent_friend_updt,
+    Friend, User, batch_ingest, fetch_active_friends, fetch_unsent_friend_updt, retr_user,
     update_friend_status_as_sent,
 };
 use futures::stream::{self, StreamExt};
@@ -124,10 +124,12 @@ pub async fn send_friend_request(
     client: &Client,
     our_username: &str,
     friend: &Friend,
+    address: &str,
 ) -> Result<(), String> {
     let req_body = FriendInput {
         username: friend.username.clone(),
         hostname: our_username.to_string(),
+        address: address.to_string(),
         req_type: friend.status.status_enum(),
     };
 
@@ -168,17 +170,17 @@ pub async fn friend_fetcher(pool: &SqlitePool, sleep_time: u64) {
             tokio::time::sleep(Duration::from_secs(15)).await;
             continue;
         }
-
         const CONCURRENT_REQUESTS: usize = 5;
 
         stream::iter(friend_list)
             .for_each_concurrent(CONCURRENT_REQUESTS, |friend| {
                 let client = client.clone();
                 let pool = pool.clone();
-                let our_username = our_username.clone();
+                let username = our_username.username.clone();
+                let address = our_username.address.clone();
 
                 async move {
-                    match send_friend_request(&pool, &client, &our_username, &friend).await {
+                    match send_friend_request(&pool, &client, &username, &friend, &address).await {
                         Ok(_) => println!("Friend request sent to {}", friend.username),
                         Err(e) => eprintln!("Error sending request to {}: {}", friend.username, e),
                     }

@@ -1,7 +1,9 @@
 use crate::api::Message;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, QueryBuilder, SqlitePool};
+use sqlx::{FromRow, QueryBuilder, SqlitePool, migrate::Migrator};
+
+pub static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 #[cfg(test)]
 mod tests;
@@ -164,6 +166,20 @@ pub async fn delete_user(pool: &SqlitePool, id: i64) -> Result<(), sqlx::Error> 
     Ok(())
 }
 
+pub async fn invite_decision(pool: &SqlitePool, id: i64, accept: bool) -> Result<(), sqlx::Error> {
+    let status = if accept { 2 } else { 3 };
+
+    sqlx::query!(
+        "UPDATE Friends SET status = ?, sent = ? WHERE id = ?",
+        status,
+        0,
+        id
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn fetch_messages_for_user(
     pool: &SqlitePool,
     username: String,
@@ -173,7 +189,7 @@ pub async fn fetch_messages_for_user(
         r#"
         SELECT id, sender, recipient, recipient_address, subject, message as body, queued_at, sent
         FROM outgoing
-        WHERE recipient = ?
+        WHERE recipient = ? AND sent = 0
         "#,
         username
     )
@@ -205,7 +221,7 @@ pub async fn fetch_active_friends(pool: &SqlitePool) -> Result<Vec<Friend>, sqlx
 
 pub async fn fetch_unsent_friend_updt(
     pool: &SqlitePool,
-) -> Result<(String, Vec<Friend>), sqlx::Error> {
+) -> Result<(User, Vec<Friend>), sqlx::Error> {
     let user = retr_user(pool).await?;
 
     let status = false;
@@ -221,7 +237,7 @@ pub async fn fetch_unsent_friend_updt(
     .fetch_all(pool)
     .await?;
 
-    Ok((user.username, friends))
+    Ok((user, friends))
 }
 
 pub async fn batch_ingest(pool: &SqlitePool, messages: Vec<Message>) -> Result<(), sqlx::Error> {

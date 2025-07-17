@@ -1,7 +1,5 @@
 use super::*;
-use sqlx::{SqlitePool, migrate::Migrator};
-
-static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
+use sqlx::SqlitePool;
 
 async fn setup_test_db() -> SqlitePool {
     let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();

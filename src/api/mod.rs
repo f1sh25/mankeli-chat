@@ -6,8 +6,9 @@ use axum::{
     routing::post,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
+use sqlx::{QueryBuilder, SqlitePool};
 use tracing::error;
+
 #[cfg(test)]
 mod tests;
 
@@ -39,6 +40,7 @@ pub enum FriendRequestStatus {
 pub struct FriendInput {
     pub username: String,
     pub hostname: String,
+    pub address: String,
     pub req_type: FriendRequestStatus,
 }
 
@@ -77,6 +79,34 @@ pub fn app(pool: SqlitePool) -> Router {
         .layer(Extension(Arc::new(pool)))
 }
 
+pub async fn mark_messages_as_sent(
+    pool: &SqlitePool,
+    message_ids: &[i64],
+) -> Result<(), sqlx::Error> {
+    if message_ids.is_empty() {
+        return Ok(());
+    }
+
+    let placeholders = std::iter::repeat("?")
+        .take(message_ids.len())
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let sql = format!(
+        "UPDATE outgoing SET sent = 1 WHERE id IN ({})",
+        placeholders
+    );
+
+    let mut query = sqlx::query(&sql);
+    for id in message_ids {
+        query = query.bind(id);
+    }
+
+    query.execute(pool).await?;
+
+    Ok(())
+}
+
 pub async fn fetch_messages_handler(
     Extension(pool): Extension<Arc<SqlitePool>>,
     Json(input): Json<FetchMessageInput>,
@@ -84,6 +114,12 @@ pub async fn fetch_messages_handler(
     let username = input.username;
 
     let db_messages = fetch_messages_for_user(&pool, username)
+        .await
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
+
+    let message_ids: Vec<i64> = db_messages.iter().map(|msg| msg.id).collect();
+
+    mark_messages_as_sent(&pool, &message_ids)
         .await
         .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
@@ -108,27 +144,23 @@ pub async fn friend_request_handler(
     let FriendInput {
         username,
         hostname,
+        address,
         req_type,
     } = input;
-
-    if username == hostname {
-        return ApiError::InvalidInput("Cannot add yourself as a friend.".to_string())
-            .into_response();
-    }
 
     match req_type {
         FriendRequestStatus::InviteSent => {
             // Insert invite_sent from A to B
             let res = sqlx::query!(
                 r#"
-                INSERT INTO friends (username, address, status)
-                VALUES (?, ?, 0)
+                INSERT INTO friends (username, address, status, sent)
+                VALUES (?, ?, 1, 1)
                 ON CONFLICT(username) DO UPDATE SET
-                    status = 0,
+                    status = 1,
                     added_at = CURRENT_TIMESTAMP
                 "#,
-                username,
-                hostname
+                hostname,
+                address,
             )
             .execute(&*pool)
             .await;
@@ -146,32 +178,8 @@ pub async fn friend_request_handler(
             }
         }
         FriendRequestStatus::InviteReceived => {
-            // Insert invite_received from B to A (not common)
-            let res = sqlx::query!(
-                r#"
-                INSERT INTO friends (username, address, status)
-                VALUES (?, ?, 1)
-                ON CONFLICT(username) DO UPDATE SET
-                    status = 1,
-                    added_at = CURRENT_TIMESTAMP
-                "#,
-                hostname,
-                username
-            )
-            .execute(&*pool)
-            .await;
-
-            match res {
-                Ok(_) => (
-                    StatusCode::OK,
-                    Json(serde_json::json!({ "status": "invite_received" })),
-                )
-                    .into_response(),
-                Err(e) => {
-                    error!("Failed to record invite_received: {:?}", e);
-                    ApiError::InternalServerError("DB insert failed".into()).into_response()
-                }
-            }
+            return ApiError::InvalidInput("why would you request this".to_string())
+                .into_response();
         }
         FriendRequestStatus::Accepted => {
             let existing: Option<i64> = match sqlx::query_scalar!(
@@ -180,7 +188,7 @@ pub async fn friend_request_handler(
                 WHERE username = ? AND address = ?
                 "#,
                 hostname,
-                username
+                address
             )
             .fetch_optional(&*pool)
             .await
@@ -196,14 +204,14 @@ pub async fn friend_request_handler(
                 if s == 0 {
                     let res = sqlx::query!(
                         r#"
-                        INSERT INTO friends (username, address, status)
-                        VALUES (?, ?, 2)
+                        INSERT INTO friends (username, address, status, sent)
+                        VALUES (?, ?, 2, 1)
                         ON CONFLICT(username) DO UPDATE SET
                             status = 2,
                             added_at = CURRENT_TIMESTAMP
                         "#,
-                        username,
-                        hostname
+                        hostname,
+                        address
                     )
                     .execute(&*pool)
                     .await;
@@ -231,11 +239,11 @@ pub async fn friend_request_handler(
         FriendRequestStatus::Rejected => {
             let updated = sqlx::query!(
                 r#"
-                UPDATE friends SET status = 3, added_at = CURRENT_TIMESTAMP
+                UPDATE friends SET status = 3, sent=1 ,added_at = CURRENT_TIMESTAMP
                 WHERE username = ? AND address = ? AND status = 0
                 "#,
                 hostname,
-                username
+                address
             )
             .execute(&*pool)
             .await;

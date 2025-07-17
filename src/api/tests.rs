@@ -1,8 +1,5 @@
 use super::*;
-use crate::db::{
-    OutgoingMessage, User,
-    send_message_to_que, setup_db,
-};
+use crate::db::{MIGRATOR, OutgoingMessage, User, send_message_to_que, setup_db};
 use axum::{
     Router,
     body::{Body, to_bytes},
@@ -10,12 +7,10 @@ use axum::{
     routing::post,
 };
 use serde_json::json;
-use sqlx::{SqlitePool, migrate::Migrator};
+use sqlx::SqlitePool;
 use std::usize;
 use tokio;
 use tower::ServiceExt;
-
-static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 async fn setup_test_db() -> SqlitePool {
     let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
@@ -86,46 +81,85 @@ async fn test_fetch_messages_success() {
 }
 
 #[tokio::test]
-async fn test_friend_invite_sent_success() {
+async fn test_friend_invite_sent_and_accepted_successfully() {
     let pool = setup_test_db().await;
     let shared_pool = Arc::new(pool.clone());
 
     let app = Router::new()
         .route("/friend_request", post(super::friend_request_handler))
         .layer(Extension(shared_pool));
-
-    let input = FriendInput {
+    // send invite
+    let invite_input = FriendInput {
         username: "alice".into(),
         hostname: "bob".into(),
+        address: "1.1.1.1".into(),
         req_type: FriendRequestStatus::InviteSent,
     };
 
-    let body = serde_json::to_string(&input).unwrap();
+    let invite_body = serde_json::to_string(&invite_input).unwrap();
 
-    let response = app
+    let invite_response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/friend_request")
                 .header("Content-Type", "application/json")
-                .body(Body::from(body))
+                .body(Body::from(invite_body))
                 .unwrap(),
         )
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(invite_response.status(), StatusCode::OK);
 
-    let body_bytes = to_bytes(response.into_body(), usize::MAX)
+    let invite_body_bytes = to_bytes(invite_response.into_body(), usize::MAX)
         .await
-        .expect("Failed to read response body");
-    let response_json: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+        .expect("Failed to read invite response body");
+    let invite_json: serde_json::Value = serde_json::from_slice(&invite_body_bytes).unwrap();
 
-    assert_eq!(response_json["status"], "invite_sent");
+    assert_eq!(invite_json["status"], "invite_sent");
 
     let row: (i64,) = sqlx::query_as("SELECT status FROM friends WHERE username = 'alice'")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(row.0, 0);
+    assert_eq!(row.0, 1);
+
+    // Step 2: Accept invite
+    let accept_input = FriendInput {
+        username: "alice".into(),
+        hostname: "bob".into(),
+        address: "1.1.1.1".into(),
+        req_type: FriendRequestStatus::Accepted,
+    };
+
+    let accept_body = serde_json::to_string(&accept_input).unwrap();
+
+    let accept_response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/friend_request")
+                .header("Content-Type", "application/json")
+                .body(Body::from(accept_body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(accept_response.status(), StatusCode::OK);
+
+    let accept_body_bytes = to_bytes(accept_response.into_body(), usize::MAX)
+        .await
+        .expect("Failed to read accept response body");
+    let accept_json: serde_json::Value = serde_json::from_slice(&accept_body_bytes).unwrap();
+
+    assert_eq!(accept_json["status"], "accepted");
+
+    let updated_row: (i64,) = sqlx::query_as("SELECT status FROM friends WHERE username = 'alice'")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(updated_row.0, 2); // 2 means Accepted
 }
