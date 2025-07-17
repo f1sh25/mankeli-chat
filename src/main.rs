@@ -1,7 +1,7 @@
 use mankeli_chat::StatusLabel;
 use mankeli_chat::api::FriendRequestStatus;
 use mankeli_chat::db::{
-    FriendRequest, Message, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
+    FriendRequest, OutgoingMessage, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
     fetch_users, retr_user, send_invite, send_message_to_que, setup_db,
 };
 use sqlx::{ConnectOptions, SqlitePool, sqlite::SqliteConnectOptions};
@@ -245,7 +245,7 @@ async fn send_message(pool: &SqlitePool) {
     let subject = read_input("Subject: ");
     let content = read_input("Content: ");
 
-    let message = Message {
+    let message = OutgoingMessage {
         send_to,
         subject,
         content,

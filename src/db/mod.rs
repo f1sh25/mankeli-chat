@@ -1,7 +1,7 @@
-use crate::api::FriendRequestStatus;
+use crate::api::{FriendRequestStatus, Message};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, QueryBuilder, SqlitePool};
 use std::{string, sync::mpsc::Sender};
 
 #[cfg(test)]
@@ -45,7 +45,7 @@ pub struct Outgoing {
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize, Deserialize)]
-pub struct Message {
+pub struct OutgoingMessage {
     pub send_to: String,
     pub subject: String,
     pub content: String,
@@ -114,7 +114,10 @@ pub async fn fetch_outgoing(pool: &SqlitePool) -> Result<Vec<Outgoing>, sqlx::Er
     Ok(messages)
 }
 
-pub async fn send_message_to_que(pool: &SqlitePool, message: &Message) -> Result<(), sqlx::Error> {
+pub async fn send_message_to_que(
+    pool: &SqlitePool,
+    message: &OutgoingMessage,
+) -> Result<(), sqlx::Error> {
     let sender = retr_user(pool).await?;
 
     let recipient_address: (String,) =
@@ -223,12 +226,38 @@ pub async fn fetch_unsent_friend_updt(
 }
 
 pub async fn batch_ingest(pool: &SqlitePool, messages: Vec<Message>) -> Result<(), sqlx::Error> {
-    todo!()
+    if messages.is_empty() {
+        return Ok(()); // Nothing to insert
+    }
+
+    let mut builder = QueryBuilder::new("INSERT INTO inbox (sender, subject, message) ");
+
+    builder.push_values(messages.iter(), |mut b, msg| {
+        b.push_bind(&msg.sender)
+            .push_bind(&msg.subject)
+            .push_bind(&msg.body);
+    });
+
+    let query = builder.build();
+    query.execute(pool).await?;
+
+    Ok(())
 }
 
 pub async fn update_friend_status_as_sent(
     pool: &SqlitePool,
     username: &String,
 ) -> Result<(), sqlx::Error> {
-    todo!()
+    sqlx::query!(
+        r#"
+        UPDATE friends
+        SET sent = 1
+        WHERE username = ?
+        "#,
+        username
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
 }

@@ -70,7 +70,7 @@ async fn test_send_message() {
         .await
         .unwrap();
 
-    let message = Message {
+    let message = OutgoingMessage {
         send_to: "user3".to_string(),
         subject: "test message".to_string(),
         content: "Hello world!".to_string(),

@@ -1,7 +1,7 @@
 use super::*;
 use crate::db::{
-    FriendRequest, Message, User, fetch_outgoing, fetch_users, send_invite, send_message_to_que,
-    setup_db,
+    FriendRequest, OutgoingMessage, User, fetch_outgoing, fetch_users, send_invite,
+    send_message_to_que, setup_db,
 };
 use axum::{
     Router,
@@ -29,7 +29,7 @@ async fn send_test_messages(pool: &sqlx::Pool<sqlx::Sqlite>) -> Result<(), sqlx:
         .execute(pool)
         .await?;
 
-    let message = Message {
+    let message = OutgoingMessage {
         send_to: "user3".to_string(),
         subject: "test message".to_string(),
         content: "Hello world!".to_string(),
