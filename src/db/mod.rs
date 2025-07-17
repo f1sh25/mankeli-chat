@@ -1,8 +1,7 @@
-use crate::api::{FriendRequestStatus, Message};
+use crate::api::Message;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, QueryBuilder, SqlitePool};
-use std::{string, sync::mpsc::Sender};
 
 #[cfg(test)]
 mod tests;

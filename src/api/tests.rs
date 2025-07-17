@@ -1,16 +1,15 @@
 use super::*;
 use crate::db::{
-    FriendRequest, OutgoingMessage, User, fetch_outgoing, fetch_users, send_invite,
+    OutgoingMessage, User,
     send_message_to_que, setup_db,
 };
 use axum::{
     Router,
     body::{Body, to_bytes},
     http::{Request, StatusCode},
-    response,
     routing::post,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use sqlx::{SqlitePool, migrate::Migrator};
 use std::usize;
 use tokio;

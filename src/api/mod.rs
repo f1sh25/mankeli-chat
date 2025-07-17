@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 use crate::db::fetch_messages_for_user;
 use axum::{
-    Extension, Router, extract::Json, http::StatusCode, response::IntoResponse, routing::post,
+    Extension, Router, extract::Json, http::StatusCode, response::IntoResponse, routing::get,
+    routing::post,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use tracing::{debug, error, info};
+use tracing::error;
 #[cfg(test)]
 mod tests;
 
@@ -65,8 +66,12 @@ impl IntoResponse for ApiError {
     }
 }
 
-fn app(pool: SqlitePool) -> Router {
+pub fn app(pool: SqlitePool) -> Router {
     Router::new()
+        .route(
+            "/",
+            get(|| async { "Hello, this is a mankeli-chat server" }),
+        )
         .route("/fetch_messages", post(fetch_messages_handler))
         .route("/friend_request", post(friend_request_handler))
         .layer(Extension(Arc::new(pool)))

@@ -9,17 +9,14 @@
 // if success then set sent flag to true
 
 use crate::StatusLabel;
-use crate::api::{
-    FetchMessageInput, FetchMessageResponse, FriendInput, FriendRequestStatus, Message,
-};
+use crate::api::{FetchMessageInput, FetchMessageResponse, FriendInput};
 use crate::db::{
     Friend, batch_ingest, fetch_active_friends, fetch_unsent_friend_updt,
     update_friend_status_as_sent,
 };
 use futures::stream::{self, StreamExt};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::SqlitePool;
 use std::time::Duration;
 
 #[cfg(test)]
@@ -64,7 +61,12 @@ pub async fn process_friend_messages(
     Ok(())
 }
 
-pub async fn message_fetcher(pool: &SqlitePool, our_username: &str, our_address: &str) {
+pub async fn message_fetcher(
+    pool: &SqlitePool,
+    our_username: &str,
+    our_address: &str,
+    sleep_time: u64,
+) {
     let client = Client::new();
     println!("Message fetcher started.");
 
@@ -79,7 +81,7 @@ pub async fn message_fetcher(pool: &SqlitePool, our_username: &str, our_address:
         };
 
         if friend_list.is_empty() {
-            println!("No active friends found. Checking again in 30s.");
+            //println!("No active friends found. Checking again in 30s.");
             tokio::time::sleep(Duration::from_secs(30)).await;
             continue;
         }
@@ -112,8 +114,8 @@ pub async fn message_fetcher(pool: &SqlitePool, our_username: &str, our_address:
             })
             .await;
 
-        println!("Fetch cycle complete. Waiting for 30s.");
-        tokio::time::sleep(Duration::from_secs(30)).await;
+        //println!("Fetch cycle complete. Waiting for {}s.", sleep_time);
+        tokio::time::sleep(Duration::from_secs(sleep_time)).await;
     }
 }
 
@@ -148,7 +150,7 @@ pub async fn send_friend_request(
     }
 }
 
-pub async fn friend_fetcher(pool: &SqlitePool) {
+pub async fn friend_fetcher(pool: &SqlitePool, sleep_time: u64) {
     let client = Client::new();
     println!("Friend fetcher service started.");
 
@@ -184,7 +186,7 @@ pub async fn friend_fetcher(pool: &SqlitePool) {
             })
             .await;
 
-        println!("Friend update cycle complete. Waiting for 15s.");
-        tokio::time::sleep(Duration::from_secs(15)).await;
+        //println!("Friend update cycle complete. Waiting for {}s.", sleep_time);
+        tokio::time::sleep(Duration::from_secs(sleep_time)).await;
     }
 }

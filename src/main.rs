@@ -1,16 +1,29 @@
+use hyper::server;
 use mankeli_chat::StatusLabel;
-use mankeli_chat::api::FriendRequestStatus;
+use mankeli_chat::api::app;
+use mankeli_chat::comms::{friend_fetcher, message_fetcher};
 use mankeli_chat::db::{
     FriendRequest, OutgoingMessage, User, delete_message, delete_user, fetch_inbox, fetch_outgoing,
     fetch_users, retr_user, send_invite, send_message_to_que, setup_db,
 };
+use serde::Deserialize;
 use sqlx::{ConnectOptions, SqlitePool, sqlite::SqliteConnectOptions};
+use std::fs;
 use std::io::{self, Write};
+use std::net::SocketAddr;
 use std::str::FromStr;
 use tracing::log::LevelFilter;
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Deserialize)]
+
+struct Config {
+    server_address: String,
+    message_fetch_interval: u64,
+    friend_fetch_interval: u64,
+}
 
 #[tokio::main]
 async fn main() {
@@ -39,6 +52,45 @@ async fn main() {
             init_db(&pool, username).await
         }
     };
+    //get config from json
+    let data = fs::read_to_string("config.json").expect("Unable to read file");
+    let config: Config = serde_json::from_str(&data).expect("JSON was not well-formatted");
+
+    //start message server
+    let app = app(pool.clone()); //probably not good idea
+
+    // Start the server
+
+    let listener = tokio::net::TcpListener::bind(config.server_address)
+        .await
+        .unwrap();
+
+    // Spawn the Axum server
+    tokio::spawn(async move {
+        if let Err(err) = axum::serve(listener, app).await {
+            eprintln!("Server error: {}", err);
+        }
+    });
+
+    // Spawn friend fetcher
+    tokio::spawn({
+        let pool = pool.clone();
+        let interval = config.friend_fetch_interval;
+        async move {
+            let _ = friend_fetcher(&pool, interval).await;
+        }
+    });
+
+    // Spawn message fetcher
+    tokio::spawn({
+        let pool = pool.clone();
+        let username = user.username.clone();
+        let address = user.address.clone();
+        let interval = config.message_fetch_interval;
+        async move {
+            let _ = message_fetcher(&pool, &username, &address, interval).await;
+        }
+    });
 
     println!("\nWelcome {}!\n", &user.username);
 
@@ -161,6 +213,7 @@ async fn read_inbox(pool: &SqlitePool) {
 }
 
 async fn read_friends(pool: &SqlitePool) {
+    // To-Do ADD option to accept and decline friend reques
     loop {
         let friends = match fetch_users(pool).await {
             Ok(friends) => friends,

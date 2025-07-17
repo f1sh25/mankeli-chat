@@ -1,5 +1,5 @@
 use super::*;
-use crate::api::FetchMessageResponse;
+use crate::api::{FetchMessageResponse, Message};
 use httpmock::{Method::POST, MockServer};
 use reqwest::Client;
 use sqlx::{SqlitePool, migrate::Migrator};
