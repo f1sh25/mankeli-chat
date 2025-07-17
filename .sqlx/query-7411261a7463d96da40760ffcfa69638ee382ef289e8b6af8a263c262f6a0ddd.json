@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE friends SET status = 3, added_at = CURRENT_TIMESTAMP\n                WHERE username = ? AND address = ? AND status = 0\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "7411261a7463d96da40760ffcfa69638ee382ef289e8b6af8a263c262f6a0ddd"
+}

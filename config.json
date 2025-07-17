@@ -1,0 +1,5 @@
+{
+  "server_address": "127.0.0.1:8080",
+  "message_fetch_interval": 30,
+  "friend_fetch_interval": 15
+}

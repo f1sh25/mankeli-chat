@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE Friends SET status = ?, sent = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "112d28cd9320c6ceae4b82b86f459cc8876daf2dc7a3917476ce7c431d4153c1"
+}

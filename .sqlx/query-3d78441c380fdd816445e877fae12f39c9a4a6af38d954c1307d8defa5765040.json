@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE friends\n        SET sent = 1\n        WHERE username = ?\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3d78441c380fdd816445e877fae12f39c9a4a6af38d954c1307d8defa5765040"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO friends (username, address, status)\n                VALUES (?, ?, 0)\n                ON CONFLICT(username) DO UPDATE SET\n                    status = 0,\n                    added_at = CURRENT_TIMESTAMP\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "cda70e4f8388801f38775d487a3bf3d0e269e0a1ac208c46f3d46bb971ddec58"
+}

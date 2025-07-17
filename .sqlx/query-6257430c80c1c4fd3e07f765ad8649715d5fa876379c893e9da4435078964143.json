@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, recipient, recipient_address, subject, message as body, queued_at, sent FROM outgoing",
+  "query": "SELECT id, sender, recipient, recipient_address, subject, message as body, queued_at, sent FROM outgoing",
   "describe": {
     "columns": [
       {
@@ -9,33 +9,38 @@
         "type_info": "Integer"
       },
       {
-        "name": "recipient",
+        "name": "sender",
         "ordinal": 1,
         "type_info": "Text"
       },
       {
-        "name": "recipient_address",
+        "name": "recipient",
         "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "name": "subject",
+        "name": "recipient_address",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "body",
+        "name": "subject",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "queued_at",
+        "name": "body",
         "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "queued_at",
+        "ordinal": 6,
         "type_info": "Datetime"
       },
       {
         "name": "sent",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Bool"
       }
     ],
@@ -48,9 +53,10 @@
       false,
       false,
       false,
+      false,
       true,
       true
     ]
   },
-  "hash": "7a7d68b5587c58092625de204aae5c9da720a83347907fc7bc86e2f00cbd9806"
+  "hash": "6257430c80c1c4fd3e07f765ad8649715d5fa876379c893e9da4435078964143"
 }

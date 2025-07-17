@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT status as \"status: i64\" FROM friends\n                WHERE username = ? AND address = ?\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "status: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d1c68c3838f9b2efcdacb18f3d2119b3c8bb5d7d66789824d840800093b82d61"
+}

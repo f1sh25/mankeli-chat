@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO outgoing (sender, recipient, recipient_address, subject, message) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6d722ebf5f6c42c6f8c2aa6c2b57bb97dd85a9a9d1dd1408dcb601926c38114b"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, username, address, added_at FROM friends",
+  "query": "\n        SELECT id, username, address, status, added_at\n        FROM friends\n        WHERE sent = ?\n        ",
   "describe": {
     "columns": [
       {
@@ -19,20 +19,26 @@
         "type_info": "Text"
       },
       {
-        "name": "added_at",
+        "name": "status",
         "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "added_at",
+        "ordinal": 4,
         "type_info": "Datetime"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
       true
     ]
   },
-  "hash": "b886f85e02754e639a7185b7816daa64f1f5228b2ffe6fbd51ecaf2a86388a69"
+  "hash": "8791bd13b80734fc785244f1ba1c8439563ab93b297195f942785de3fc28e2e3"
 }
