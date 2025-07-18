@@ -6,7 +6,7 @@ use axum::{
     routing::post,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{QueryBuilder, SqlitePool};
+use sqlx::SqlitePool;
 use tracing::error;
 
 #[cfg(test)]

@@ -11,7 +11,7 @@
 use crate::StatusLabel;
 use crate::api::{FetchMessageInput, FetchMessageResponse, FriendInput};
 use crate::db::{
-    Friend, User, batch_ingest, fetch_active_friends, fetch_unsent_friend_updt, retr_user,
+    Friend, batch_ingest, fetch_active_friends, fetch_unsent_friend_updt,
     update_friend_status_as_sent,
 };
 use futures::stream::{self, StreamExt};
